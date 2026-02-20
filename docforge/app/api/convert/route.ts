@@ -54,10 +54,10 @@ export async function POST(request: NextRequest) {
     const template = await loadTemplate("airlift-msm-v1");
     const structured = detectStructure(ast, template);
     const metadata = {
-      revisionNumber: 30,
-      date: "22.02.26",
-      companyName: "Airlift AS",
-      manualAbbreviation: "MSM",
+      revisionNumber: Number(formData.get("revisionNumber")) || 0,
+      date: (formData.get("date") as string) || "",
+      companyName: (formData.get("companyName") as string) || "",
+      manualAbbreviation: (formData.get("manualAbbreviation") as string) || "",
     };
 
     // Prepare preview: return heading structure per section (no Puppeteer)

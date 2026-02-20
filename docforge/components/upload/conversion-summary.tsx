@@ -3,10 +3,12 @@
 import { useConversion } from "@/lib/context/conversion-context";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { useRouter } from "next/navigation";
 
 export function ConversionSummary() {
-  const { parseSummary, file, setStatus, setPreviewData, setPdfUrl, setError } =
+  const { parseSummary, file, metadata, setMetadataField, setStatus, setPreviewData, setPdfUrl, setError } =
     useConversion();
   const router = useRouter();
 
@@ -23,6 +25,10 @@ export function ConversionSummary() {
 
       const pdfForm = new FormData();
       pdfForm.append("file", file);
+      if (metadata.revisionNumber) pdfForm.append("revisionNumber", metadata.revisionNumber);
+      if (metadata.date) pdfForm.append("date", metadata.date);
+      if (metadata.companyName) pdfForm.append("companyName", metadata.companyName);
+      if (metadata.manualAbbreviation) pdfForm.append("manualAbbreviation", metadata.manualAbbreviation);
 
       const [previewRes, pdfRes] = await Promise.all([
         fetch("/api/convert", { method: "POST", body: previewForm }),
@@ -74,6 +80,46 @@ export function ConversionSummary() {
           <div className="text-center p-3 bg-muted rounded-lg">
             <div className="text-2xl font-bold">{parseSummary.listCount}</div>
             <div className="text-sm text-muted-foreground">Lists</div>
+          </div>
+        </div>
+        <h3 className="font-semibold mb-4">Document Details</h3>
+        <div className="grid grid-cols-2 gap-4 mb-6">
+          <div className="space-y-2">
+            <Label htmlFor="companyName">Company Name</Label>
+            <Input
+              id="companyName"
+              value={metadata.companyName}
+              onChange={(e) => setMetadataField("companyName", e.target.value)}
+              placeholder="e.g. Airlift AS"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="manualAbbreviation">Manual Abbreviation</Label>
+            <Input
+              id="manualAbbreviation"
+              value={metadata.manualAbbreviation}
+              onChange={(e) => setMetadataField("manualAbbreviation", e.target.value)}
+              placeholder="e.g. MSM"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="revisionNumber">Revision Number</Label>
+            <Input
+              id="revisionNumber"
+              type="number"
+              value={metadata.revisionNumber}
+              onChange={(e) => setMetadataField("revisionNumber", e.target.value)}
+              placeholder="e.g. 30"
+            />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="date">Revision Date</Label>
+            <Input
+              id="date"
+              value={metadata.date}
+              onChange={(e) => setMetadataField("date", e.target.value)}
+              placeholder="DD.MM.YY"
+            />
           </div>
         </div>
         <Button onClick={handleConvert} className="w-full" size="lg">

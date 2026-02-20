@@ -12,6 +12,7 @@ export default function PreviewPage() {
     pdfUrl,
     previewData,
     manualBreaks,
+    metadata,
     file,
     status,
     reset,
@@ -47,6 +48,10 @@ export default function PreviewPage() {
         if (breaks.length > 0) {
           formData.append("manualBreaks", JSON.stringify(breaks));
         }
+        if (metadata.revisionNumber) formData.append("revisionNumber", metadata.revisionNumber);
+        if (metadata.date) formData.append("date", metadata.date);
+        if (metadata.companyName) formData.append("companyName", metadata.companyName);
+        if (metadata.manualAbbreviation) formData.append("manualAbbreviation", metadata.manualAbbreviation);
 
         const response = await fetch("/api/convert", {
           method: "POST",
@@ -69,7 +74,7 @@ export default function PreviewPage() {
         isRenderingRef.current = false;
       }
     },
-    [file, setStatus, setPdfUrl, setError]
+    [file, metadata, setStatus, setPdfUrl, setError]
   );
 
   // Auto re-render when manualBreaks change

@@ -10,6 +10,13 @@ interface ParseSummary {
   listCount: number;
 }
 
+export interface DocumentMetadata {
+  revisionNumber: string;
+  date: string;
+  companyName: string;
+  manualAbbreviation: string;
+}
+
 export interface HeadingInfo {
   elementIndex: number;
   level: number;
@@ -44,6 +51,7 @@ interface ConversionState {
   error: string | null;
   previewData: PreviewData | null;
   manualBreaks: ManualPageBreak[];
+  metadata: DocumentMetadata;
 }
 
 interface ConversionActions {
@@ -55,8 +63,16 @@ interface ConversionActions {
   setPreviewData: (data: PreviewData) => void;
   toggleManualBreak: (sectionId: string, elementIndex: number) => void;
   clearManualBreaks: () => void;
+  setMetadataField: (field: keyof DocumentMetadata, value: string) => void;
   reset: () => void;
 }
+
+const defaultMetadata: DocumentMetadata = {
+  revisionNumber: "",
+  date: "",
+  companyName: "",
+  manualAbbreviation: "",
+};
 
 const initialState: ConversionState = {
   file: null,
@@ -66,6 +82,7 @@ const initialState: ConversionState = {
   error: null,
   previewData: null,
   manualBreaks: [],
+  metadata: defaultMetadata,
 };
 
 const ConversionContext = createContext<
@@ -136,6 +153,16 @@ export function ConversionProvider({ children }: { children: ReactNode }) {
     setState((prev) => ({ ...prev, manualBreaks: [] }));
   }, []);
 
+  const setMetadataField = useCallback(
+    (field: keyof DocumentMetadata, value: string) => {
+      setState((prev) => ({
+        ...prev,
+        metadata: { ...prev.metadata, [field]: value },
+      }));
+    },
+    []
+  );
+
   const reset = useCallback(() => {
     setState(initialState);
   }, []);
@@ -152,6 +179,7 @@ export function ConversionProvider({ children }: { children: ReactNode }) {
         setPreviewData,
         toggleManualBreak,
         clearManualBreaks,
+        setMetadataField,
         reset,
       }}
     >
