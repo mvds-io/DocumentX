@@ -1,0 +1,131 @@
+{
+  "id": "airlift-msm-v1",
+  "name": "Airlift MSM Standard Format",
+  "version": "1.0",
+  "page": {
+    "size": "A4",
+    "orientation": "portrait",
+    "margins": {
+      "top": 17,
+      "bottom": 16,
+      "left": 28,
+      "right": 28
+    },
+    "headerOffset": 12.5,
+    "footerOffset": 12.5
+  },
+  "typography": {
+    "body": {
+      "font": "Arial",
+      "size": 10.6,
+      "lineHeight": 14,
+      "color": "#000000",
+      "paragraphGap": 16.3
+    },
+    "h1": {
+      "font": "Arial",
+      "size": 17.3,
+      "bold": true,
+      "uppercase": true,
+      "pageBreakBefore": true
+    },
+    "h2": {
+      "font": "Arial",
+      "size": 13.4,
+      "bold": true,
+      "uppercase": true,
+      "spaceBefore": 20
+    },
+    "h3": {
+      "font": "Arial",
+      "size": 11.5,
+      "bold": true,
+      "uppercase": true,
+      "spaceBefore": 16
+    }
+  },
+  "header": {
+    "enabled": true,
+    "font": { "family": "Arial", "size": 9.6, "uppercase": true },
+    "left": "{companyName}",
+    "center": "{chapterTitle}",
+    "right": "{manualAbbreviation}",
+    "separatorLine": { "width": 0.48, "color": "#000000" }
+  },
+  "footer": {
+    "enabled": true,
+    "font": { "family": "Arial", "size": 9.6 },
+    "left": "{date:DD.MM.YY}",
+    "center": "REVISION {revisionNumber}",
+    "right": "PAGE {sectionPrefix}-{pageNumber}",
+    "separatorLine": { "width": 0.48, "color": "#000000" }
+  },
+  "documentStructure": {
+    "coverPage": {
+      "enabled": true,
+      "logo": "/templates/assets/airlift-logo.png",
+      "title": "Management System Manual",
+      "subtitle": "(MSM)",
+      "titleFont": { "family": "Arial", "size": 27.6, "bold": true }
+    },
+    "blankPages": {
+      "text": "Intentionally left blank.",
+      "insertAfterCover": true,
+      "insertAfterTOC": true
+    },
+    "tableOfContents": {
+      "enabled": true,
+      "dotLeaders": true,
+      "depth": 3,
+      "headerCenter": "TABLE OF CONTENTS",
+      "pageNumbering": "roman"
+    },
+    "chapterTitlePages": {
+      "enabled": true,
+      "titlePosition": "44%",
+      "format": "CHAPTER {number}:\n{name}",
+      "appendixFormat": "APPENDIX {letter}:\n{name}"
+    },
+    "pageNumbering": {
+      "scheme": "chapter-relative",
+      "tocFormat": "roman",
+      "chapterFormat": "{prefix}-{page}",
+      "chapters": [
+        { "prefix": "0", "name": "Introduction" },
+        { "prefix": "1", "name": "Management System Objectives & Policy" },
+        { "prefix": "2", "name": "Safety Risk Management" },
+        { "prefix": "3", "name": "Compliance Monitoring Program" },
+        { "prefix": "4", "name": "Safety Promotion" },
+        { "prefix": "5", "name": "Management Qualifications, Training & Assessment" }
+      ],
+      "appendices": [
+        { "prefix": "A", "name": "Information Security Management System (ISMS)" },
+        { "prefix": "B", "name": "Safety Performance Indicators and Targets" },
+        { "prefix": "C", "name": "Occurrences Classification" },
+        { "prefix": "D", "name": "Helicopter Flight Data Monitoring (HFDM) Program" },
+        { "prefix": "E", "name": "Quality Module" },
+        { "prefix": "F", "name": "The OpsCom System" },
+        { "prefix": "G", "name": "Forms" },
+        { "prefix": "H", "name": "ISIRP" }
+      ]
+    }
+  },
+  "revisionManagement": {
+    "enabled": true,
+    "indexOfRevisions": true,
+    "listOfEffectiveChapters": true,
+    "revisionHighlights": true,
+    "revisionBars": {
+      "enabled": true,
+      "width": 1.8,
+      "color": "#000000",
+      "offsetFromTextMargin": -18,
+      "sourceMarker": "trackedChanges"
+    }
+  },
+  "bullets": {
+    "character": "•",
+    "indentFromMargin": 54,
+    "textIndentFromMargin": 68
+  }
+}
