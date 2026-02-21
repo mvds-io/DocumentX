@@ -13,6 +13,7 @@ import type {
   TransformedDocument,
   RenderSection,
 } from "@/lib/transformer/types";
+import type { StructuredDocument } from "@/lib/structure/types";
 import { buildFullHtmlPage } from "./html-builder";
 import { buildTocHtml } from "@/lib/transformer/transformer";
 
@@ -133,7 +134,7 @@ export async function renderPdf(doc: TransformedDocument): Promise<{ buffer: Buf
     }
 
     // Phase 4: Merge all PDFs, add page numbers and rewrite TOC links
-    const { buffer, headingPages } = await mergeAndAddPageNumbers(sectionBuffers, pageNumberMap);
+    const { buffer, headingPages } = await mergeAndAddPageNumbers(sectionBuffers, pageNumberMap, doc.structuredDoc);
     return { buffer, headingPages };
   } finally {
     await browser.close();
@@ -370,7 +371,8 @@ function buildFooterHtml(
  */
 async function mergeAndAddPageNumbers(
   sectionBuffers: { buffer: Buffer; section: RenderSection }[],
-  pageNumberMap: Map<string, number>
+  pageNumberMap: Map<string, number>,
+  structuredDoc: StructuredDocument
 ): Promise<{ buffer: Buffer; headingPages: Record<string, number> }> {
   const mergedPdf = await PDFDocument.create();
   const pageInfo: { section: RenderSection; pageInSection: number }[] = [];
@@ -441,6 +443,10 @@ async function mergeAndAddPageNumbers(
       headingPages[headingId] = absPage + 1;
     }
   }
+
+  // Add PDF bookmarks (outlines) for the Acrobat navigation panel
+  const bookmarks = buildBookmarkTree(structuredDoc, pageNumberMap, sectionStartPages);
+  addOutlinesToPdf(mergedPdf, bookmarks);
 
   return { buffer: Buffer.from(await mergedPdf.save()), headingPages };
 }
@@ -554,6 +560,179 @@ function resolveDestinationPage(
 
   // Fallback: link to the chapter's first page
   return chapterStart;
+}
+
+// ─── PDF Bookmarks / Outlines ───────────────────────────────────────────────
+
+interface BookmarkItem {
+  title: string;
+  /** Absolute 0-based page index in the merged PDF */
+  absolutePage: number;
+  children: BookmarkItem[];
+}
+
+/** Remove section numbering prefix from heading text */
+function cleanHeadingText(text: string): string {
+  return text.replace(/^[A-Z0-9]+(?:\.\d+)*\s*[-–—]?\s*/i, "").trim();
+}
+
+/**
+ * Build a hierarchical bookmark tree from the structured document.
+ * Each chapter becomes a top-level bookmark, with sections and subsections nested underneath.
+ */
+function buildBookmarkTree(
+  structuredDoc: StructuredDocument,
+  pageNumberMap: Map<string, number>,
+  sectionStartPages: Map<string, number>,
+): BookmarkItem[] {
+  const items: BookmarkItem[] = [];
+  const allChapters = [...structuredDoc.chapters, ...structuredDoc.appendices];
+
+  for (const chapter of allChapters) {
+    const titleStart = sectionStartPages.get(`title-${chapter.prefix}`);
+    const contentStart = sectionStartPages.get(`content-${chapter.prefix}`);
+    const chapterPage = titleStart ?? contentStart;
+    if (chapterPage === undefined) continue;
+
+    const chapterLabel = chapter.isAppendix
+      ? `Appendix ${chapter.prefix} - ${chapter.title}`
+      : `Chapter ${chapter.prefix} - ${chapter.title}`;
+
+    const chapterItem: BookmarkItem = {
+      title: chapterLabel,
+      absolutePage: chapterPage,
+      children: [],
+    };
+
+    for (const section of chapter.sections) {
+      const sectionNum = section.heading.numbering || "";
+      const sectionTitle = cleanHeadingText(section.heading.text);
+      const sectionAbsPage = resolveDestinationPage(
+        sectionNum, chapter.prefix, pageNumberMap, sectionStartPages,
+      );
+      if (sectionAbsPage === null) continue;
+
+      const sectionItem: BookmarkItem = {
+        title: `${sectionNum} ${sectionTitle}`,
+        absolutePage: sectionAbsPage,
+        children: [],
+      };
+
+      for (const sub of section.subsections) {
+        const subNum = sub.heading.numbering || "";
+        const subTitle = cleanHeadingText(sub.heading.text);
+        const subAbsPage = resolveDestinationPage(
+          subNum, chapter.prefix, pageNumberMap, sectionStartPages,
+        );
+        if (subAbsPage === null) continue;
+
+        sectionItem.children.push({
+          title: `${subNum} ${subTitle}`,
+          absolutePage: subAbsPage,
+          children: [],
+        });
+      }
+
+      chapterItem.children.push(sectionItem);
+    }
+
+    items.push(chapterItem);
+  }
+
+  return items;
+}
+
+/**
+ * Add PDF outline (bookmark) dictionaries to the document catalog.
+ * Creates the /Outlines tree structure per ISO 32000.
+ */
+function addOutlinesToPdf(
+  pdfDoc: PDFDocument,
+  bookmarks: BookmarkItem[],
+): void {
+  if (bookmarks.length === 0) return;
+
+  const context = pdfDoc.context;
+
+  // Create root outline dictionary
+  const outlinesDict = context.obj({});
+  outlinesDict.set(PDFName.of("Type"), PDFName.of("Outlines"));
+  const outlinesRef = context.register(outlinesDict);
+
+  // Recursively create outline items
+  const totalCount = createOutlineItems(context, pdfDoc, outlinesRef, bookmarks, outlinesDict);
+  outlinesDict.set(PDFName.of("Count"), context.obj(totalCount));
+
+  // Register in the PDF catalog
+  const catalogRef = context.trailerInfo.Root;
+  const catalog = context.lookup(catalogRef, PDFDict);
+  catalog.set(PDFName.of("Outlines"), outlinesRef);
+  catalog.set(PDFName.of("PageMode"), PDFName.of("UseOutlines"));
+}
+
+/**
+ * Recursively create outline item dictionaries for a list of sibling bookmarks.
+ * Links them with /Prev and /Next, sets /First and /Last on the parent.
+ * Returns the total number of outline items created (for parent /Count).
+ */
+function createOutlineItems(
+  context: PDFDocument["context"],
+  pdfDoc: PDFDocument,
+  parentRef: PDFRef,
+  items: BookmarkItem[],
+  parentDict: PDFDict,
+): number {
+  if (items.length === 0) return 0;
+
+  const itemRefs: PDFRef[] = [];
+  const itemDicts: PDFDict[] = [];
+
+  // First pass: create and register all dictionaries
+  for (const _item of items) {
+    const dict = context.obj({});
+    const ref = context.register(dict);
+    itemRefs.push(ref);
+    itemDicts.push(dict);
+  }
+
+  let totalCount = items.length;
+
+  // Second pass: populate each dictionary
+  for (let i = 0; i < items.length; i++) {
+    const item = items[i];
+    const dict = itemDicts[i];
+
+    // Title (use PDFHexString for Unicode safety)
+    dict.set(PDFName.of("Title"), PDFHexString.fromText(item.title));
+
+    // Destination: [pageRef /Fit]
+    const destPage = pdfDoc.getPage(item.absolutePage);
+    dict.set(PDFName.of("Dest"), context.obj([destPage.ref, PDFName.of("Fit")]));
+
+    // Parent
+    dict.set(PDFName.of("Parent"), parentRef);
+
+    // Sibling links
+    if (i > 0) {
+      dict.set(PDFName.of("Prev"), itemRefs[i - 1]);
+    }
+    if (i < items.length - 1) {
+      dict.set(PDFName.of("Next"), itemRefs[i + 1]);
+    }
+
+    // Children
+    if (item.children.length > 0) {
+      const childCount = createOutlineItems(context, pdfDoc, itemRefs[i], item.children, dict);
+      dict.set(PDFName.of("Count"), context.obj(childCount));
+      totalCount += childCount;
+    }
+  }
+
+  // Set /First and /Last on parent
+  parentDict.set(PDFName.of("First"), itemRefs[0]);
+  parentDict.set(PDFName.of("Last"), itemRefs[itemRefs.length - 1]);
+
+  return totalCount;
 }
 
 function toRoman(num: number): string {
