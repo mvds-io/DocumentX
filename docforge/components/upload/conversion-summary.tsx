@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { BackgroundGradient } from "@/components/ui/background-gradient";
 import { useRouter } from "next/navigation";
 
 export function ConversionSummary() {
@@ -122,9 +123,11 @@ export function ConversionSummary() {
             />
           </div>
         </div>
-        <Button onClick={handleConvert} className="w-full" size="lg">
-          Convert to PDF
-        </Button>
+        <BackgroundGradient className="rounded-lg" containerClassName="rounded-lg">
+          <Button onClick={handleConvert} className="w-full rounded-lg" size="lg">
+            Convert to PDF
+          </Button>
+        </BackgroundGradient>
       </CardContent>
     </Card>
   );

@@ -19,7 +19,7 @@ import { buildTocHtml } from "@/lib/transformer/transformer";
 /** Marker URL prefix used in TOC <a> tags. Parsed during PDF post-processing. */
 const TOC_LINK_PREFIX = "https://docforge.link/";
 
-export async function renderPdf(doc: TransformedDocument): Promise<Buffer> {
+export async function renderPdf(doc: TransformedDocument): Promise<{ buffer: Buffer; headingPages: Record<string, number> }> {
   const browser = await puppeteer.launch({
     headless: true,
     args: [
@@ -133,7 +133,8 @@ export async function renderPdf(doc: TransformedDocument): Promise<Buffer> {
     }
 
     // Phase 4: Merge all PDFs, add page numbers and rewrite TOC links
-    return await mergeAndAddPageNumbers(sectionBuffers, pageNumberMap);
+    const { buffer, headingPages } = await mergeAndAddPageNumbers(sectionBuffers, pageNumberMap);
+    return { buffer, headingPages };
   } finally {
     await browser.close();
   }
@@ -370,7 +371,7 @@ function buildFooterHtml(
 async function mergeAndAddPageNumbers(
   sectionBuffers: { buffer: Buffer; section: RenderSection }[],
   pageNumberMap: Map<string, number>
-): Promise<Buffer> {
+): Promise<{ buffer: Buffer; headingPages: Record<string, number> }> {
   const mergedPdf = await PDFDocument.create();
   const pageInfo: { section: RenderSection; pageInSection: number }[] = [];
   const sectionStartPages: Map<string, number> = new Map();
@@ -429,7 +430,19 @@ async function mergeAndAddPageNumbers(
   // Rewrite TOC link annotations: replace Chromium's URI actions with GoTo destinations
   rewriteTocLinks(mergedPdf, pageInfo, pageNumberMap, sectionStartPages);
 
-  return Buffer.from(await mergedPdf.save());
+  // Build absolute page map for each heading (for scroll-to-page in preview)
+  const headingPages: Record<string, number> = {};
+  for (const [headingId, pageInChapter] of pageNumberMap) {
+    // Find the chapter prefix from the heading ID (e.g. "1.1" → prefix "1")
+    const chapterPrefix = headingId.split(".")[0];
+    const absPage = resolveDestinationPage(headingId, chapterPrefix, pageNumberMap, sectionStartPages);
+    if (absPage !== null) {
+      // Store as 1-based page number for PDF viewer compatibility
+      headingPages[headingId] = absPage + 1;
+    }
+  }
+
+  return { buffer: Buffer.from(await mergedPdf.save()), headingPages };
 }
 
 /**

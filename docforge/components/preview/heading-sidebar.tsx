@@ -6,7 +6,7 @@ import type { PreviewSection } from "@/lib/context/conversion-context";
 interface HeadingSidebarProps {
   sections: PreviewSection[];
   activeBreaks: Set<string>; // "sectionId:elementIndex"
-  onToggleBreak: (sectionId: string, elementIndex: number) => void;
+  onToggleBreak: (sectionId: string, elementIndex: number, headingNumbering?: string) => void;
   onClearAll: () => void;
   isRendering: boolean;
   breakCount: number;
@@ -65,7 +65,7 @@ export function HeadingSidebar({
                 <button
                   key={key}
                   onClick={() =>
-                    onToggleBreak(section.sectionId, h.elementIndex)
+                    onToggleBreak(section.sectionId, h.elementIndex, h.numbering)
                   }
                   disabled={isRendering}
                   className={`w-full text-left px-2 py-1.5 rounded text-xs transition-colors flex items-start gap-2 ${indent} ${

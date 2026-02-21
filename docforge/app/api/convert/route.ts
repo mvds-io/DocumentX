@@ -93,13 +93,14 @@ export async function POST(request: NextRequest) {
       : [];
 
     const transformed = transform(structured, template, metadata, manualBreaks.length > 0 ? manualBreaks : undefined);
-    const pdfBuffer = await renderPdf(transformed);
+    const { buffer: pdfBuffer, headingPages } = await renderPdf(transformed);
 
     return new NextResponse(new Uint8Array(pdfBuffer), {
       status: 200,
       headers: {
         "Content-Type": "application/pdf",
         "Content-Disposition": `attachment; filename="docforge-output-${Date.now()}.pdf"`,
+        "X-Heading-Pages": JSON.stringify(headingPages),
       },
     });
   } catch (error) {

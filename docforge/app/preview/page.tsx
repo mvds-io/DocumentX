@@ -27,6 +27,7 @@ export default function PreviewPage() {
   // Track the breaks that are already reflected in the current PDF
   const renderedBreaksRef = useRef<string>("[]");
   const isRenderingRef = useRef(false);
+  const scrollTargetRef = useRef<string | null>(null);
 
   const activeBreakKeys = useMemo(() => {
     const set = new Set<string>();
@@ -64,8 +65,23 @@ export default function PreviewPage() {
           return;
         }
 
+        // Read heading page map for scroll-to-page
+        const headingPagesHeader = response.headers.get("X-Heading-Pages");
+        let scrollPage: number | null = null;
+        if (headingPagesHeader && scrollTargetRef.current) {
+          try {
+            const headingPages: Record<string, number> = JSON.parse(headingPagesHeader);
+            const page = headingPages[scrollTargetRef.current];
+            if (page) scrollPage = page;
+          } catch { /* ignore parse errors */ }
+        }
+        scrollTargetRef.current = null;
+
         const blob = await response.blob();
-        const url = URL.createObjectURL(blob);
+        let url = URL.createObjectURL(blob);
+        if (scrollPage !== null) {
+          url += `#page=${scrollPage}`;
+        }
         renderedBreaksRef.current = JSON.stringify(breaks);
         setPdfUrl(url);
       } catch {
@@ -95,7 +111,18 @@ export default function PreviewPage() {
     }
   }, [status, manualBreaks, renderPdf]);
 
+  const handleToggleBreak = useCallback(
+    (sectionId: string, elementIndex: number, headingNumbering?: string) => {
+      if (headingNumbering) {
+        scrollTargetRef.current = headingNumbering;
+      }
+      toggleManualBreak(sectionId, elementIndex);
+    },
+    [toggleManualBreak]
+  );
+
   const handleClearAndRerender = useCallback(() => {
+    scrollTargetRef.current = null;
     clearManualBreaks();
     // The useEffect will pick up the empty breaks and trigger a re-render
   }, [clearManualBreaks]);
@@ -174,7 +201,7 @@ export default function PreviewPage() {
             <HeadingSidebar
               sections={previewData.sections}
               activeBreaks={activeBreakKeys}
-              onToggleBreak={toggleManualBreak}
+              onToggleBreak={handleToggleBreak}
               onClearAll={handleClearAndRerender}
               isRendering={isRendering}
               breakCount={manualBreaks.length}

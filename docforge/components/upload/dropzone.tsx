@@ -4,6 +4,7 @@ import { useCallback } from "react";
 import { useDropzone } from "react-dropzone";
 import { useConversion } from "@/lib/context/conversion-context";
 import { toast } from "sonner";
+import { GlowingEffect } from "@/components/ui/glowing-effect";
 
 export function UploadDropzone() {
   const { file, setFile, setParseSummary, setStatus, setError } = useConversion();
@@ -65,44 +66,57 @@ export function UploadDropzone() {
   });
 
   return (
-    <div
-      {...getRootProps()}
-      className={`
-        border-2 border-dashed rounded-lg p-12 text-center cursor-pointer transition-colors
-        ${isDragActive ? "border-primary bg-primary/5" : "border-muted-foreground/25 hover:border-primary/50"}
-        ${file ? "border-green-500 bg-green-50 dark:bg-green-950/20" : ""}
-      `}
-    >
-      <input {...getInputProps()} />
+    <div className="relative rounded-lg">
+      <GlowingEffect
+        spread={40}
+        glow
+        disabled={!!file}
+        proximity={64}
+        inactiveZone={0.01}
+        borderWidth={2}
+      />
+      <div
+        {...getRootProps()}
+        className={`
+          relative border-2 border-dashed rounded-lg p-12 text-center cursor-pointer transition-colors
+          ${isDragActive ? "border-primary bg-primary/5" : "border-muted-foreground/25 hover:border-primary/50"}
+          ${file ? "border-green-500 bg-green-50 dark:bg-green-950/20" : ""}
+        `}
+      >
+        <input {...getInputProps()} />
 
-      {file ? (
-        <div className="space-y-2">
-          <div className="text-3xl">&#10003;</div>
-          <p className="font-medium">{file.name}</p>
-          <p className="text-sm text-muted-foreground">
-            {(file.size / 1024 / 1024).toFixed(2)} MB
-          </p>
-          <p className="text-xs text-muted-foreground">
-            Drop a new file to replace
-          </p>
-        </div>
-      ) : (
-        <div className="space-y-2">
-          <div className="text-4xl text-muted-foreground">&#128196;</div>
-          {isDragActive ? (
-            <p className="text-primary font-medium">Drop your file here</p>
-          ) : (
-            <>
-              <p className="font-medium">
-                Drag and drop your .docx file here, or click to browse
-              </p>
-              <p className="text-sm text-muted-foreground">
-                Maximum file size: 50 MB
-              </p>
-            </>
-          )}
-        </div>
-      )}
+        {file ? (
+          <div className="space-y-2">
+            <div className="text-3xl">&#10003;</div>
+            <p className="font-medium">{file.name}</p>
+            <p className="text-sm text-muted-foreground">
+              {(file.size / 1024 / 1024).toFixed(2)} MB
+            </p>
+            <p className="text-xs text-muted-foreground">
+              Drop a new file to replace
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-2">
+            <div className="text-4xl text-muted-foreground">&#128196;</div>
+            {isDragActive ? (
+              <p className="text-primary font-medium">Drop your file here</p>
+            ) : (
+              <>
+                <p className="font-medium">
+                  Drag and drop your .docx file here, or click to browse
+                </p>
+                <p className="text-sm text-muted-foreground">
+                  Maximum file size: 50 MB
+                </p>
+              </>
+            )}
+          </div>
+        )}
+      </div>
+      <p className="text-xs text-muted-foreground text-center mt-3">
+        Your documents are processed locally and deleted after conversion. Nothing is stored.
+      </p>
     </div>
   );
 }
