@@ -37,3 +37,8 @@ export interface ManualPageBreak {
   sectionId: string;
   beforeElementIndex: number;
 }
+
+export interface RevisionMark {
+  sectionId: string;
+  headingElementIndex: number;
+}

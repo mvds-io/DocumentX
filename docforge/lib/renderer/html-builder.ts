@@ -293,5 +293,9 @@ function buildCss(section: RenderSection, template: TemplateConfig): string {
   }
 
   // Default: chapter-content
-  return baseCss;
+  return baseCss + `
+    .revision-section {
+      border-left: 2pt solid #000000;
+    }
+  `;
 }

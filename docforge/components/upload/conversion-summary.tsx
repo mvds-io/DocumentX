@@ -9,7 +9,7 @@ import { BackgroundGradient } from "@/components/ui/background-gradient";
 import { useRouter } from "next/navigation";
 
 export function ConversionSummary() {
-  const { parseSummary, file, metadata, setMetadataField, setStatus, setPreviewData, setPdfUrl, setError } =
+  const { parseSummary, file, metadata, setMetadataField, setStatus, setPreviewData, setPdfUrl, setError, setHeadingPageLabels, setSectionPageCounts } =
     useConversion();
   const router = useRouter();
 
@@ -50,6 +50,16 @@ export function ConversionSummary() {
 
       const previewData = await previewRes.json();
       setPreviewData(previewData);
+
+      // Parse page distribution data from response headers
+      const labelsHeader = pdfRes.headers.get("X-Heading-Page-Labels");
+      if (labelsHeader) {
+        try { setHeadingPageLabels(JSON.parse(labelsHeader)); } catch { /* ignore */ }
+      }
+      const countsHeader = pdfRes.headers.get("X-Section-Page-Counts");
+      if (countsHeader) {
+        try { setSectionPageCounts(JSON.parse(countsHeader)); } catch { /* ignore */ }
+      }
 
       const blob = await pdfRes.blob();
       const url = URL.createObjectURL(blob);

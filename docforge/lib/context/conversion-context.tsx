@@ -1,7 +1,9 @@
 "use client";
 
 import { createContext, useContext, useState, useCallback, type ReactNode } from "react";
-import type { ManualPageBreak } from "@/lib/transformer/types";
+import type { ManualPageBreak, RevisionMark } from "@/lib/transformer/types";
+
+export type SidebarMode = "breaks" | "revisions";
 
 interface ParseSummary {
   headingCount: number;
@@ -51,6 +53,10 @@ interface ConversionState {
   error: string | null;
   previewData: PreviewData | null;
   manualBreaks: ManualPageBreak[];
+  revisionMarks: RevisionMark[];
+  sidebarMode: SidebarMode;
+  headingPageLabels: Record<string, string>;
+  sectionPageCounts: Record<string, number>;
   metadata: DocumentMetadata;
 }
 
@@ -63,6 +69,11 @@ interface ConversionActions {
   setPreviewData: (data: PreviewData) => void;
   toggleManualBreak: (sectionId: string, elementIndex: number) => void;
   clearManualBreaks: () => void;
+  toggleRevisionMark: (sectionId: string, headingElementIndex: number) => void;
+  clearRevisionMarks: () => void;
+  setSidebarMode: (mode: SidebarMode) => void;
+  setHeadingPageLabels: (labels: Record<string, string>) => void;
+  setSectionPageCounts: (counts: Record<string, number>) => void;
   setMetadataField: (field: keyof DocumentMetadata, value: string) => void;
   reset: () => void;
 }
@@ -82,6 +93,10 @@ const initialState: ConversionState = {
   error: null,
   previewData: null,
   manualBreaks: [],
+  revisionMarks: [],
+  sidebarMode: "breaks",
+  headingPageLabels: {},
+  sectionPageCounts: {},
   metadata: defaultMetadata,
 };
 
@@ -102,6 +117,9 @@ export function ConversionProvider({ children }: { children: ReactNode }) {
       error: null,
       previewData: null,
       manualBreaks: [],
+      revisionMarks: [],
+      headingPageLabels: {},
+      sectionPageCounts: {},
     }));
   }, []);
 
@@ -153,6 +171,46 @@ export function ConversionProvider({ children }: { children: ReactNode }) {
     setState((prev) => ({ ...prev, manualBreaks: [] }));
   }, []);
 
+  const toggleRevisionMark = useCallback(
+    (sectionId: string, headingElementIndex: number) => {
+      setState((prev) => {
+        const exists = prev.revisionMarks.find(
+          (r) => r.sectionId === sectionId && r.headingElementIndex === headingElementIndex
+        );
+        if (exists) {
+          return {
+            ...prev,
+            revisionMarks: prev.revisionMarks.filter((r) => r !== exists),
+          };
+        }
+        return {
+          ...prev,
+          revisionMarks: [
+            ...prev.revisionMarks,
+            { sectionId, headingElementIndex },
+          ],
+        };
+      });
+    },
+    []
+  );
+
+  const clearRevisionMarks = useCallback(() => {
+    setState((prev) => ({ ...prev, revisionMarks: [] }));
+  }, []);
+
+  const setSidebarMode = useCallback((mode: SidebarMode) => {
+    setState((prev) => ({ ...prev, sidebarMode: mode }));
+  }, []);
+
+  const setHeadingPageLabels = useCallback((labels: Record<string, string>) => {
+    setState((prev) => ({ ...prev, headingPageLabels: labels }));
+  }, []);
+
+  const setSectionPageCounts = useCallback((counts: Record<string, number>) => {
+    setState((prev) => ({ ...prev, sectionPageCounts: counts }));
+  }, []);
+
   const setMetadataField = useCallback(
     (field: keyof DocumentMetadata, value: string) => {
       setState((prev) => ({
@@ -179,6 +237,11 @@ export function ConversionProvider({ children }: { children: ReactNode }) {
         setPreviewData,
         toggleManualBreak,
         clearManualBreaks,
+        toggleRevisionMark,
+        clearRevisionMarks,
+        setSidebarMode,
+        setHeadingPageLabels,
+        setSectionPageCounts,
         setMetadataField,
         reset,
       }}

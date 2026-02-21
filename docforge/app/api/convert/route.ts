@@ -4,7 +4,7 @@ import { detectStructure, getStructureSummary } from "@/lib/structure/detector";
 import { transform } from "@/lib/transformer/transformer";
 import { renderPdf } from "@/lib/renderer/pdf";
 import { loadTemplate } from "@/lib/templates/loader";
-import type { ManualPageBreak } from "@/lib/transformer/types";
+import type { ManualPageBreak, RevisionMark } from "@/lib/transformer/types";
 
 const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
 
@@ -86,14 +86,23 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ sections });
     }
 
-    // Full conversion pipeline (with optional manual breaks)
+    // Full conversion pipeline (with optional manual breaks and revision marks)
     const manualBreaksJson = formData.get("manualBreaks") as string | null;
     const manualBreaks: ManualPageBreak[] = manualBreaksJson
       ? JSON.parse(manualBreaksJson)
       : [];
 
-    const transformed = transform(structured, template, metadata, manualBreaks.length > 0 ? manualBreaks : undefined);
-    const { buffer: pdfBuffer, headingPages } = await renderPdf(transformed);
+    const revisionMarksJson = formData.get("revisionMarks") as string | null;
+    const revisionMarks: RevisionMark[] = revisionMarksJson
+      ? JSON.parse(revisionMarksJson)
+      : [];
+
+    const transformed = transform(
+      structured, template, metadata,
+      manualBreaks.length > 0 ? manualBreaks : undefined,
+      revisionMarks.length > 0 ? revisionMarks : undefined
+    );
+    const { buffer: pdfBuffer, headingPages, headingPageLabels, sectionPageCounts } = await renderPdf(transformed);
 
     return new NextResponse(new Uint8Array(pdfBuffer), {
       status: 200,
@@ -101,6 +110,8 @@ export async function POST(request: NextRequest) {
         "Content-Type": "application/pdf",
         "Content-Disposition": `attachment; filename="docforge-output-${Date.now()}.pdf"`,
         "X-Heading-Pages": JSON.stringify(headingPages),
+        "X-Heading-Page-Labels": JSON.stringify(headingPageLabels),
+        "X-Section-Page-Counts": JSON.stringify(sectionPageCounts),
       },
     });
   } catch (error) {

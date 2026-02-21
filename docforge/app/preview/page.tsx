@@ -12,20 +12,30 @@ export default function PreviewPage() {
     pdfUrl,
     previewData,
     manualBreaks,
+    revisionMarks,
+    sidebarMode,
+    headingPageLabels,
+    sectionPageCounts,
     metadata,
     file,
     status,
     reset,
     toggleManualBreak,
     clearManualBreaks,
+    toggleRevisionMark,
+    clearRevisionMarks,
+    setSidebarMode,
+    setHeadingPageLabels,
+    setSectionPageCounts,
     setStatus,
     setPdfUrl,
     setError,
   } = useConversion();
   const router = useRouter();
 
-  // Track the breaks that are already reflected in the current PDF
+  // Track the breaks + revisions that are already reflected in the current PDF
   const renderedBreaksRef = useRef<string>("[]");
+  const renderedRevisionsRef = useRef<string>("[]");
   const isRenderingRef = useRef(false);
   const scrollTargetRef = useRef<string | null>(null);
 
@@ -37,8 +47,16 @@ export default function PreviewPage() {
     return set;
   }, [manualBreaks]);
 
+  const activeRevisionKeys = useMemo(() => {
+    const set = new Set<string>();
+    for (const r of revisionMarks) {
+      set.add(`${r.sectionId}:${r.headingElementIndex}`);
+    }
+    return set;
+  }, [revisionMarks]);
+
   const renderPdf = useCallback(
-    async (breaks: typeof manualBreaks) => {
+    async (breaks: typeof manualBreaks, revisions: typeof revisionMarks) => {
       if (!file || isRenderingRef.current) return;
       isRenderingRef.current = true;
       setStatus("converting");
@@ -48,6 +66,9 @@ export default function PreviewPage() {
         formData.append("file", file);
         if (breaks.length > 0) {
           formData.append("manualBreaks", JSON.stringify(breaks));
+        }
+        if (revisions.length > 0) {
+          formData.append("revisionMarks", JSON.stringify(revisions));
         }
         if (metadata.revisionNumber) formData.append("revisionNumber", metadata.revisionNumber);
         if (metadata.date) formData.append("date", metadata.date);
@@ -77,12 +98,27 @@ export default function PreviewPage() {
         }
         scrollTargetRef.current = null;
 
+        // Parse page labels and section counts
+        const labelsHeader = response.headers.get("X-Heading-Page-Labels");
+        if (labelsHeader) {
+          try {
+            setHeadingPageLabels(JSON.parse(labelsHeader));
+          } catch { /* ignore */ }
+        }
+        const countsHeader = response.headers.get("X-Section-Page-Counts");
+        if (countsHeader) {
+          try {
+            setSectionPageCounts(JSON.parse(countsHeader));
+          } catch { /* ignore */ }
+        }
+
         const blob = await response.blob();
         let url = URL.createObjectURL(blob);
         if (scrollPage !== null) {
           url += `#page=${scrollPage}`;
         }
         renderedBreaksRef.current = JSON.stringify(breaks);
+        renderedRevisionsRef.current = JSON.stringify(revisions);
         setPdfUrl(url);
       } catch {
         setError("Conversion failed. Please try again.");
@@ -90,26 +126,32 @@ export default function PreviewPage() {
         isRenderingRef.current = false;
       }
     },
-    [file, metadata, setStatus, setPdfUrl, setError]
+    [file, metadata, setStatus, setPdfUrl, setError, setHeadingPageLabels, setSectionPageCounts]
   );
 
-  // Auto re-render when manualBreaks change
-  useEffect(() => {
-    const currentBreaksJson = JSON.stringify(manualBreaks);
-    if (currentBreaksJson !== renderedBreaksRef.current && !isRenderingRef.current) {
-      renderPdf(manualBreaks);
-    }
-  }, [manualBreaks, renderPdf]);
+  // Serialize current state for change detection
+  const currentBreaksJson = JSON.stringify(manualBreaks);
+  const currentRevisionsJson = JSON.stringify(revisionMarks);
 
-  // If a render just finished but breaks changed while it was in progress, re-render again
+  // Auto re-render when manualBreaks or revisionMarks change
+  useEffect(() => {
+    const breaksChanged = currentBreaksJson !== renderedBreaksRef.current;
+    const revisionsChanged = currentRevisionsJson !== renderedRevisionsRef.current;
+    if ((breaksChanged || revisionsChanged) && !isRenderingRef.current) {
+      renderPdf(manualBreaks, revisionMarks);
+    }
+  }, [currentBreaksJson, currentRevisionsJson, manualBreaks, revisionMarks, renderPdf]);
+
+  // If a render just finished but state changed while it was in progress, re-render again
   useEffect(() => {
     if (status === "done") {
-      const currentBreaksJson = JSON.stringify(manualBreaks);
-      if (currentBreaksJson !== renderedBreaksRef.current) {
-        renderPdf(manualBreaks);
+      const breaksChanged = currentBreaksJson !== renderedBreaksRef.current;
+      const revisionsChanged = currentRevisionsJson !== renderedRevisionsRef.current;
+      if (breaksChanged || revisionsChanged) {
+        renderPdf(manualBreaks, revisionMarks);
       }
     }
-  }, [status, manualBreaks, renderPdf]);
+  }, [status, currentBreaksJson, currentRevisionsJson, manualBreaks, revisionMarks, renderPdf]);
 
   const handleToggleBreak = useCallback(
     (sectionId: string, elementIndex: number, headingNumbering?: string) => {
@@ -121,11 +163,25 @@ export default function PreviewPage() {
     [toggleManualBreak]
   );
 
-  const handleClearAndRerender = useCallback(() => {
+  const handleToggleRevision = useCallback(
+    (sectionId: string, elementIndex: number, headingNumbering?: string) => {
+      if (headingNumbering) {
+        scrollTargetRef.current = headingNumbering;
+      }
+      toggleRevisionMark(sectionId, elementIndex);
+    },
+    [toggleRevisionMark]
+  );
+
+  const handleClearBreaks = useCallback(() => {
     scrollTargetRef.current = null;
     clearManualBreaks();
-    // The useEffect will pick up the empty breaks and trigger a re-render
   }, [clearManualBreaks]);
+
+  const handleClearRevisions = useCallback(() => {
+    scrollTargetRef.current = null;
+    clearRevisionMarks();
+  }, [clearRevisionMarks]);
 
   const handleConvertAnother = () => {
     reset();
@@ -134,7 +190,8 @@ export default function PreviewPage() {
 
   const isRendering = status === "converting";
   const pdfOutOfDate =
-    JSON.stringify(manualBreaks) !== renderedBreaksRef.current;
+    currentBreaksJson !== renderedBreaksRef.current ||
+    currentRevisionsJson !== renderedRevisionsRef.current;
 
   // No data at all
   if (!pdfUrl && !previewData) {
@@ -200,11 +257,19 @@ export default function PreviewPage() {
           <div className="w-72 flex-shrink-0 border rounded bg-background overflow-hidden">
             <HeadingSidebar
               sections={previewData.sections}
+              sidebarMode={sidebarMode}
+              onSetSidebarMode={setSidebarMode}
               activeBreaks={activeBreakKeys}
               onToggleBreak={handleToggleBreak}
-              onClearAll={handleClearAndRerender}
-              isRendering={isRendering}
+              onClearBreaks={handleClearBreaks}
               breakCount={manualBreaks.length}
+              activeRevisions={activeRevisionKeys}
+              onToggleRevision={handleToggleRevision}
+              onClearRevisions={handleClearRevisions}
+              revisionCount={revisionMarks.length}
+              headingPageLabels={headingPageLabels}
+              sectionPageCounts={sectionPageCounts}
+              isRendering={isRendering}
             />
           </div>
         )}

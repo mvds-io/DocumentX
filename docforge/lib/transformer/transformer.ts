@@ -5,6 +5,7 @@ import type {
   RenderSection,
   ConversionMetadata,
   ManualPageBreak,
+  RevisionMark,
 } from "./types";
 import { elementsToHtml } from "./html-generator";
 
@@ -12,7 +13,8 @@ export function transform(
   doc: StructuredDocument,
   template: TemplateConfig,
   metadata: ConversionMetadata,
-  manualBreaks?: ManualPageBreak[]
+  manualBreaks?: ManualPageBreak[],
+  revisionMarks?: RevisionMark[]
 ): TransformedDocument {
   const sections: RenderSection[] = [];
   const allChapters = [...doc.chapters, ...doc.appendices];
@@ -61,7 +63,7 @@ export function transform(
 
   // Chapters and appendices
   for (const chapter of allChapters) {
-    addChapterSections(sections, chapter, template, manualBreaks);
+    addChapterSections(sections, chapter, template, manualBreaks, revisionMarks);
   }
 
   return { sections, template, metadata, structuredDoc: doc };
@@ -71,7 +73,8 @@ function addChapterSections(
   sections: RenderSection[],
   chapter: Chapter,
   template: TemplateConfig,
-  manualBreaks?: ManualPageBreak[]
+  manualBreaks?: ManualPageBreak[],
+  revisionMarks?: RevisionMark[]
 ) {
   // Chapter title page
   if (template.documentStructure.chapterTitlePages.enabled) {
@@ -92,6 +95,9 @@ function addChapterSections(
   const sectionBreaks = manualBreaks
     ?.filter((b) => b.sectionId === sectionId)
     .map((b) => b.beforeElementIndex);
+  const sectionRevisions = revisionMarks
+    ?.filter((r) => r.sectionId === sectionId)
+    .map((r) => r.headingElementIndex);
 
   sections.push({
     id: sectionId,
@@ -101,7 +107,8 @@ function addChapterSections(
     htmlContent: elementsToHtml(
       chapter.elements,
       template,
-      sectionBreaks?.length ? new Set(sectionBreaks) : undefined
+      sectionBreaks?.length ? new Set(sectionBreaks) : undefined,
+      sectionRevisions?.length ? new Set(sectionRevisions) : undefined
     ),
     showHeader: true,
     showFooter: true,

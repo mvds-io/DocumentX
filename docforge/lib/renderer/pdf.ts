@@ -20,7 +20,14 @@ import { buildTocHtml } from "@/lib/transformer/transformer";
 /** Marker URL prefix used in TOC <a> tags. Parsed during PDF post-processing. */
 const TOC_LINK_PREFIX = "https://docforge.link/";
 
-export async function renderPdf(doc: TransformedDocument): Promise<{ buffer: Buffer; headingPages: Record<string, number> }> {
+export interface RenderResult {
+  buffer: Buffer;
+  headingPages: Record<string, number>;
+  headingPageLabels: Record<string, string>;
+  sectionPageCounts: Record<string, number>;
+}
+
+export async function renderPdf(doc: TransformedDocument): Promise<RenderResult> {
   const browser = await puppeteer.launch({
     headless: true,
     args: [
@@ -134,8 +141,8 @@ export async function renderPdf(doc: TransformedDocument): Promise<{ buffer: Buf
     }
 
     // Phase 4: Merge all PDFs, add page numbers and rewrite TOC links
-    const { buffer, headingPages } = await mergeAndAddPageNumbers(sectionBuffers, pageNumberMap, doc.structuredDoc);
-    return { buffer, headingPages };
+    const { buffer, headingPages, headingPageLabels, sectionPageCounts } = await mergeAndAddPageNumbers(sectionBuffers, pageNumberMap, doc.structuredDoc);
+    return { buffer, headingPages, headingPageLabels, sectionPageCounts };
   } finally {
     await browser.close();
   }
@@ -373,7 +380,7 @@ async function mergeAndAddPageNumbers(
   sectionBuffers: { buffer: Buffer; section: RenderSection }[],
   pageNumberMap: Map<string, number>,
   structuredDoc: StructuredDocument
-): Promise<{ buffer: Buffer; headingPages: Record<string, number> }> {
+): Promise<{ buffer: Buffer; headingPages: Record<string, number>; headingPageLabels: Record<string, string>; sectionPageCounts: Record<string, number> }> {
   const mergedPdf = await PDFDocument.create();
   const pageInfo: { section: RenderSection; pageInSection: number }[] = [];
   const sectionStartPages: Map<string, number> = new Map();
@@ -444,11 +451,24 @@ async function mergeAndAddPageNumbers(
     }
   }
 
+  // Build heading page labels (chapter-relative, e.g. "1-2", "A-3")
+  const headingPageLabels: Record<string, string> = {};
+  for (const [headingId, pageInChapter] of pageNumberMap) {
+    const chapterPrefix = headingId.split(".")[0];
+    headingPageLabels[headingId] = `${chapterPrefix}-${pageInChapter}`;
+  }
+
+  // Build section page counts from chapterPageCounters (already computed during numbering)
+  const sectionPageCounts: Record<string, number> = {};
+  for (const [prefix, count] of chapterPageCounters) {
+    sectionPageCounts[prefix] = count;
+  }
+
   // Add PDF bookmarks (outlines) for the Acrobat navigation panel
   const bookmarks = buildBookmarkTree(structuredDoc, pageNumberMap, sectionStartPages);
   addOutlinesToPdf(mergedPdf, bookmarks);
 
-  return { buffer: Buffer.from(await mergedPdf.save()), headingPages };
+  return { buffer: Buffer.from(await mergedPdf.save()), headingPages, headingPageLabels, sectionPageCounts };
 }
 
 /**

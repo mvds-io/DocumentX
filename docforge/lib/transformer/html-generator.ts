@@ -10,7 +10,8 @@ import type { TemplateConfig } from "@/lib/templates/schema";
 export function elementsToHtml(
   elements: DocumentElement[],
   template: TemplateConfig,
-  manualBreaks?: Set<number>
+  manualBreaks?: Set<number>,
+  revisionHeadings?: Set<number>
 ): string {
   // Collect heading IDs so we can generate hidden anchor links.
   // Chromium only creates PDF named destinations when <a href="#id"> links
@@ -22,9 +23,33 @@ export function elementsToHtml(
     }
   }
 
-  const contentHtml = elements
-    .map((el, i) => elementToHtml(el, template, i, manualBreaks?.has(i)))
-    .join("\n");
+  // Compute which element indices are "revised" by expanding each marked heading
+  // to cover all elements until the next heading of same or higher level.
+  const revisedElements = computeRevisedElements(elements, revisionHeadings);
+
+  // Build content HTML with revision-section wrappers around consecutive revised elements
+  const contentParts: string[] = [];
+  let inRevisionBlock = false;
+
+  for (let i = 0; i < elements.length; i++) {
+    const isRevised = revisedElements.has(i);
+
+    if (isRevised && !inRevisionBlock) {
+      contentParts.push('<div class="revision-section">');
+      inRevisionBlock = true;
+    } else if (!isRevised && inRevisionBlock) {
+      contentParts.push('</div>');
+      inRevisionBlock = false;
+    }
+
+    contentParts.push(elementToHtml(elements[i], template, i, manualBreaks?.has(i)));
+  }
+
+  if (inRevisionBlock) {
+    contentParts.push('</div>');
+  }
+
+  const contentHtml = contentParts.join("\n");
 
   if (headingIds.length === 0) return contentHtml;
 
@@ -35,6 +60,35 @@ export function elementsToHtml(
   const anchorDiv = `<div style="position:absolute;left:-9999px;height:0;overflow:hidden;">${anchors}</div>`;
 
   return anchorDiv + "\n" + contentHtml;
+}
+
+/**
+ * Given a set of heading element indices marked as revised, expand each to
+ * cover all child elements until the next heading of same or higher level.
+ */
+function computeRevisedElements(
+  elements: DocumentElement[],
+  revisionHeadings?: Set<number>
+): Set<number> {
+  const result = new Set<number>();
+  if (!revisionHeadings || revisionHeadings.size === 0) return result;
+
+  for (const headingIdx of revisionHeadings) {
+    const heading = elements[headingIdx];
+    if (!heading || heading.type !== "heading") continue;
+
+    const headingLevel = heading.level;
+    result.add(headingIdx);
+
+    // Expand forward until we hit a heading of same or higher level
+    for (let j = headingIdx + 1; j < elements.length; j++) {
+      const el = elements[j];
+      if (el.type === "heading" && el.level <= headingLevel) break;
+      result.add(j);
+    }
+  }
+
+  return result;
 }
 
 function elementToHtml(
