@@ -73,7 +73,8 @@ export async function parseDocx(buffer: Buffer): Promise<DocumentAST> {
         } satisfies HeadingElement);
       } else if (tagName === "p") {
         const text = node.text().trim();
-        if (text.length === 0) return;
+        const hasImage = node.find("img").length > 0;
+        if (text.length === 0 && !hasImage) return;
 
         // Check if this bold paragraph is actually a heading
         const promoted = tryPromoteToHeading(node, $, text);
@@ -274,6 +275,17 @@ function extractInlineElements(
       const tag = child as DomElement;
       const tagName = tag.tagName.toLowerCase();
       const childNode = $(child);
+      // Handle self-closing tags before the empty-text guard
+      if (tagName === "img") {
+        const src = childNode.attr("src") || "";
+        inlines.push({ type: "text", text: `[image:${src}]` });
+        return;
+      }
+      if (tagName === "br") {
+        inlines.push({ type: "text", text: "\n" });
+        return;
+      }
+
       const text = childNode.text();
 
       if (text.trim().length === 0) return;
@@ -284,12 +296,6 @@ function extractInlineElements(
         inlines.push({ type: "text", text, italic: true });
       } else if (tagName === "u") {
         inlines.push({ type: "text", text, underline: true });
-      } else if (tagName === "img") {
-        // Preserve image references
-        const src = childNode.attr("src") || "";
-        inlines.push({ type: "text", text: `[image:${src}]` });
-      } else if (tagName === "br") {
-        inlines.push({ type: "text", text: "\n" });
       } else {
         const nested = extractInlineElements(childNode, $);
         if (nested.length > 0) {

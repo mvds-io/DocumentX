@@ -4,6 +4,7 @@ import { UploadDropzone } from "@/components/upload/dropzone";
 import { ConversionSummary } from "@/components/upload/conversion-summary";
 import { ConversionProgress } from "@/components/upload/conversion-progress";
 import { DownloadResult } from "@/components/upload/download-result";
+import { DocumentGuide } from "@/components/upload/document-guide";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 
 export default function Home() {
@@ -20,6 +21,8 @@ export default function Home() {
           <UploadDropzone />
         </CardContent>
       </Card>
+
+      <DocumentGuide />
 
       <ConversionProgress />
       <ConversionSummary />
